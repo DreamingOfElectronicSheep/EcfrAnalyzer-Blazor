@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="EcfrAnalyzer/EcfrAnalyzer.csproj" />
+  <Project Path="EcfrTests/EcfrTests.csproj" />
+</Solution>
