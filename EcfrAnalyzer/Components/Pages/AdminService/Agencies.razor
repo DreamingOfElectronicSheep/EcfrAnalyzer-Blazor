@@ -1,0 +1,240 @@
+@page "/AdminService/Agencies"
+@rendermode InteractiveServer
+@using EcfrAnalyzer.Models;
+@using EcfrAnalyzer.Services;
+@inject IEcfrApiService EcfrApiService;
+<PageTitle>Agencies</PageTitle>
+
+<div class="mb-4">
+    <button class="btn btn-primary btn-lg" @onclick="LoadAllAgencies" disabled="@isLoading">
+        @(isLoading ? "Loading Agencies..." : "Get All Agencies")
+    </button>
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            @errorMessage
+        </div>
+    }
+</div>
+
+@if(agenciesResponse != null)
+{
+    <div class="card border-primary mb-4">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted me-2">Total Agencies:</span>
+                    <span class="badge bg-primary rounded-pill fs-6">@agenciesResponse.Agencies.Count</span>
+                </div>
+                <div>
+                    <span class="text-muted me-2">Endpoint:</span>
+                    <code class="text-secondary">/api/agencies</code>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isLoading)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else if (agenciesResponse?.Agencies?.Any() == true)
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th style="width: 30px;"></th>
+                <th>
+                    <div>Name</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterName" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Short Name</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterShortName" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Display Name</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterDisplayName" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Sortable Name</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterSortableName" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Slug</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterSlug" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Check Sum</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterChecksum" @bind:event="oninput" />
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in GetFilteredAgencies())
+            {
+                <tr class="@(item.Depth > 0 ? "table-info" : "")">
+                    <td>
+                        @if (item.Agency.CfrReferences?.Any() == true)
+                        {
+                            <button class="btn btn-sm btn-link text-decoration-none p-0" @onclick="() => ToggleExpanded(item.Agency)">
+                                @* Use text characters to guarantee visibility if CSS icons are missing *@
+                                @(IsExpanded(item.Agency) ? "▼" : "▶")
+                            </button>
+                        }
+                        else
+                        {
+                            @* Debug visual: Shows a dash if the list exists but is empty *@
+                            <span class="text-muted small">-</span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.Depth > 0)
+                        {
+                            <span style="margin-left: @(item.Depth * 20)px;">↳ </span>
+                        }
+                        @item.Agency.Name
+                    </td>
+                    <td>@item.Agency.ShortName</td>
+                    <td>@item.Agency.DisplayName</td>
+                    <td>@item.Agency.SortableName</td>
+                    <td>@item.Agency.Slug</td>
+                    <td>@item.Agency.GetChecksum()</td>
+                </tr>
+
+                @if (IsExpanded(item.Agency))
+                {
+                    <tr>
+                        <td colspan="7" class="p-0">
+                            <div class="p-3 bg-light">
+                                <h6>CFR References (@item.Agency.CfrReferences.Count)</h6>
+                                <table class="table table-sm table-bordered mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Chapter</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var cfrRef in item.Agency.CfrReferences)
+                                        {
+                                            <tr>
+                                                <td>@cfrRef.Title</td>
+                                                <td>@cfrRef.Chapter</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+else if (agenciesResponse != null)
+{
+    <div>No agencies found.</div>
+}
+
+@code {
+    private class AgencyItem
+    {
+        public Agency Agency { get; set; } = null!;
+        public int Depth { get; set; }
+    }
+
+    private bool isLoading = false;
+    private AgenciesResponseModel? agenciesResponse;
+    private CancellationToken cancellationToken;
+    private string errorMessage = string.Empty;
+
+    private string filterName = string.Empty;
+    private string filterShortName = string.Empty;
+    private string filterDisplayName = string.Empty;
+    private string filterSortableName = string.Empty;
+    private string filterSlug = string.Empty;
+    private string filterChecksum = string.Empty;
+
+    private HashSet<Agency> expandedAgencies = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        cancellationToken = new CancellationToken();
+    }
+
+    private async Task LoadAllAgencies()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            agenciesResponse = await EcfrApiService.GetAgenciesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<AgencyItem> GetFilteredAgencies()
+    {
+        var flatList = new List<AgencyItem>();
+
+        if (agenciesResponse?.Agencies == null)
+            return Enumerable.Empty<AgencyItem>();
+
+        foreach (var agency in agenciesResponse.Agencies)
+        {
+            FlattenAgencies(agency, 0, flatList);
+        }
+
+        return flatList.Where(item => MatchesFilters(item.Agency)).ToList();
+    }
+
+    private void FlattenAgencies(Agency agency, int depth, List<AgencyItem> flatList)
+    {
+        flatList.Add(new AgencyItem { Agency = agency, Depth = depth });
+
+        foreach (var child in agency.Children)
+        {
+            FlattenAgencies(child, depth + 1, flatList);
+        }
+    }
+
+    private bool MatchesFilters(Agency agency)
+    {
+        return (string.IsNullOrEmpty(filterName) || agency.Name?.Contains(filterName, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterShortName) || agency.ShortName?.Contains(filterShortName, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterDisplayName) || agency.DisplayName?.Contains(filterDisplayName, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterSortableName) || agency.SortableName?.Contains(filterSortableName, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterSlug) || agency.Slug?.Contains(filterSlug, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterChecksum) || agency.GetChecksum().Contains(filterChecksum, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private void ToggleExpanded(Agency agency)
+    {
+        if (expandedAgencies.Contains(agency))
+        {
+            expandedAgencies.Remove(agency);
+        }
+        else
+        {
+            expandedAgencies.Add(agency);
+        }
+    }
+
+    private bool IsExpanded(Agency agency)
+    {
+        return expandedAgencies.Contains(agency);
+    }
+}

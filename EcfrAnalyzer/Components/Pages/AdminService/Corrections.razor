@@ -1,0 +1,231 @@
+@page "/AdminService/Corrections"
+@rendermode InteractiveServer
+@using EcfrAnalyzer.Models;
+@using EcfrAnalyzer.Services;
+@inject IEcfrApiService EcfrApiService;
+<PageTitle>Corrections</PageTitle>
+
+<div class="mb-4">
+    <button class="btn btn-primary btn-lg" @onclick="LoadAllCorrections" disabled="@isLoading">
+        @(isLoading ? "Loading Corrections..." : "Get All Corrections")
+    </button>
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            @errorMessage
+        </div>
+    }
+</div>
+
+@if (correctionsResponse != null)
+{
+    <div class="card border-primary mb-4">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted me-2">Total Corrections:</span>
+                    <span class="badge bg-primary rounded-pill fs-6">@correctionsResponse.EcfrCorrections.Count</span>
+                </div>
+                <div>
+                    <span class="text-muted me-2">Endpoint:</span>
+                    <code class="text-secondary">/api/corrections</code>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isLoading)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else if (correctionsResponse?.EcfrCorrections?.Any() == true)
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th style="width: 30px;"></th>
+                <th>
+                    <div>ID</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterId" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Title</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterTitle" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Year</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterYear" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>FR Citation</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterFrCitation" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Corrective Action</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterCorrectiveAction" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Error Occurred</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterErrorOccurred" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Error Corrected</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterErrorCorrected" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Last Modified</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterLastModified" @bind:event="oninput" />
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var correction in GetFilteredCorrections())
+            {
+                <tr>
+                    <td>
+                        @if (correction.CfrReferences?.Any() == true)
+                        {
+                            <button class="btn btn-sm btn-link text-decoration-none p-0" @onclick="() => ToggleExpanded(correction)">
+                                @(IsExpanded(correction) ? "▼" : "▶")
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">-</span>
+                        }
+                    </td>
+                    <td>@correction.Id</td>
+                    <td>@correction.Title</td>
+                    <td>@correction.Year</td>
+                    <td>@correction.FrCitation</td>
+                    <td>@correction.CorrectiveAction</td>
+                    <td>@correction.ErrorOccurred?.ToString("yyyy-MM-dd")</td>
+                    <td>@correction.ErrorCorrected?.ToString("yyyy-MM-dd")</td>
+                    <td>@correction.LastModified?.ToString("yyyy-MM-dd")</td>
+                </tr>
+
+                @if (IsExpanded(correction))
+                {
+                    <tr>
+                        <td colspan="9" class="p-0">
+                            <div class="p-3 bg-light">
+                                <h6>CFR References (@correction.CfrReferences.Count)</h6>
+                                <table class="table table-sm table-bordered mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Reference</th>
+                                            <th>Title</th>
+                                            <th>Subtitle</th>
+                                            <th>Part</th>
+                                            <th>Subpart</th>
+                                            <th>Section</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var cfrRef in correction.CfrReferences)
+                                        {
+                                            <tr>
+                                                <td>@cfrRef.Reference</td>
+                                                <td>@cfrRef.Hierarchy?.Title</td>
+                                                <td>@cfrRef.Hierarchy?.Subtitle</td>
+                                                <td>@cfrRef.Hierarchy?.Part</td>
+                                                <td>@cfrRef.Hierarchy?.Subpart</td>
+                                                <td>@cfrRef.Hierarchy?.Section</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+else if (correctionsResponse != null)
+{
+    <div>No corrections found.</div>
+}
+
+@code {
+    private bool isLoading = false;
+    private CorrectionsResponseModel? correctionsResponse;
+    private CancellationToken cancellationToken;
+    private string errorMessage = string.Empty;
+
+    private string filterId = string.Empty;
+    private string filterTitle = string.Empty;
+    private string filterYear = string.Empty;
+    private string filterFrCitation = string.Empty;
+    private string filterCorrectiveAction = string.Empty;
+    private string filterErrorOccurred = string.Empty;
+    private string filterErrorCorrected = string.Empty;
+    private string filterLastModified = string.Empty;
+
+    private HashSet<EcfrCorrection> expandedCorrections = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        cancellationToken = new CancellationToken();
+    }
+
+    private async Task LoadAllCorrections()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            correctionsResponse = await EcfrApiService.GetCorrectionsAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<EcfrCorrection> GetFilteredCorrections()
+    {
+        if (correctionsResponse?.EcfrCorrections == null)
+            return Enumerable.Empty<EcfrCorrection>();
+
+        return correctionsResponse.EcfrCorrections.Where(MatchesFilters).ToList();
+    }
+
+    private bool MatchesFilters(EcfrCorrection correction)
+    {
+        return (string.IsNullOrEmpty(filterId) || correction.Id.ToString().Contains(filterId, StringComparison.OrdinalIgnoreCase)) &&
+               (string.IsNullOrEmpty(filterTitle) || correction.Title?.ToString().Contains(filterTitle, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterYear) || correction.Year?.ToString().Contains(filterYear, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterFrCitation) || correction.FrCitation?.Contains(filterFrCitation, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterCorrectiveAction) || correction.CorrectiveAction?.Contains(filterCorrectiveAction, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterErrorOccurred) || correction.ErrorOccurred?.ToString("yyyy-MM-dd").Contains(filterErrorOccurred, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterErrorCorrected) || correction.ErrorCorrected?.ToString("yyyy-MM-dd").Contains(filterErrorCorrected, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterLastModified) || correction.LastModified?.ToString("yyyy-MM-dd").Contains(filterLastModified, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private void ToggleExpanded(EcfrCorrection correction)
+    {
+        if (expandedCorrections.Contains(correction))
+        {
+            expandedCorrections.Remove(correction);
+        }
+        else
+        {
+            expandedCorrections.Add(correction);
+        }
+    }
+
+    private bool IsExpanded(EcfrCorrection correction)
+    {
+        return expandedCorrections.Contains(correction);
+    }
+}

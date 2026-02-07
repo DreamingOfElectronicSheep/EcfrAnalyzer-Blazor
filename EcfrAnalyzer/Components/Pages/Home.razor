@@ -1,0 +1,73 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm clickable-card" @onclick="NavigateToAgencies">
+            <div class="card-body">
+                <h5 class="card-title">📋 Agencies</h5>
+                <p class="card-text text-muted">
+                    View and manage eCFR agencies with hierarchical structures, CFR references, 
+                    and comprehensive filtering capabilities. Browse parent agencies and their child organizations.
+                </p>
+                <span class="badge bg-primary">Click to view →</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm clickable-card" @onclick="NavigateToCorrections">
+            <div class="card-body">
+                <h5 class="card-title">✏️ Corrections</h5>
+                <p class="card-text text-muted">
+                    Browse and analyze eCFR corrections including corrective actions, error dates, 
+                    FR citations, and detailed CFR references with hierarchical structure information.
+                </p>
+                <span class="badge bg-primary">Click to view →</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm clickable-card" @onclick="NavigateToSearchResults">
+            <div class="card-body">
+                <h5 class="card-title">🔍 Search Results</h5>
+                <p class="card-text text-muted">
+                    Search and explore eCFR regulations with full-text search capabilities. 
+                    Find sections, parts, and regulatory content with hierarchical context and relevance scoring.
+                </p>
+                <span class="badge bg-primary">Click to view →</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .clickable-card {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .clickable-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+    }
+</style>
+
+@code{
+    private void NavigateToAgencies()
+    {
+        Navigation.NavigateTo("/AdminService/Agencies");
+    }
+
+    private void NavigateToCorrections()
+    {
+        Navigation.NavigateTo("/AdminService/Corrections");
+    }
+
+    private void NavigateToSearchResults()
+    {
+        Navigation.NavigateTo("/SearchService/SearchResults");
+    }
+}

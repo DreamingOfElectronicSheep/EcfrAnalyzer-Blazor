@@ -1,0 +1,174 @@
+@page "/SearchService/SearchResults"
+@rendermode InteractiveServer
+@using EcfrAnalyzer.Models;
+@using EcfrAnalyzer.Services;
+@inject IEcfrApiService EcfrApiService;
+<PageTitle>SearchResults</PageTitle>
+
+<div class="mb-4">
+    <div class="input-group input-group-lg">
+        <input type="text" class="form-control" placeholder="Enter search query..." @bind="query" @bind:event="oninput" disabled="@isLoading" />
+        <button class="btn btn-primary" @onclick="LoadAllAgencies" disabled="@isLoading">
+            @(isLoading ? "Searching..." : "Search")
+        </button>
+    </div>
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            @errorMessage
+        </div>
+    }
+</div>
+
+@if (searchResponse != null)
+{
+    <div class="card border-primary mb-4">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted me-2">Total Results:</span>
+                    <span class="badge bg-primary rounded-pill fs-6">@searchResponse.Results.Count</span>
+                </div>
+                <div>
+                    <span class="text-muted me-2">Endpoint:</span>
+                    <code class="text-secondary">/api/search</code>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isLoading)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else if (searchResponse?.Results?.Any() == true)
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>
+                    <div>Type</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterType" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Title</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterTitle" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Part</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterPart" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Section</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterSection" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Starts On</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterStartsOn" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Ends On</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterEndsOn" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Score</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterScore" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Reserved</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterReserved" @bind:event="oninput" />
+                </th>
+                <th>
+                    <div>Removed</div>
+                    <input type="text" class="form-control form-control-sm" placeholder="Filter..." @bind="filterRemoved" @bind:event="oninput" />
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var result in GetFilteredResults())
+            {
+                <tr>
+                    <td>@result.Type</td>
+                    <td>@result.Hierarchy?.Title</td>
+                    <td>@result.Hierarchy?.Part</td>
+                    <td>@result.Hierarchy?.Section</td>
+                    <td>@result.StartsOn?.ToString("yyyy-MM-dd")</td>
+                    <td>@result.EndsOn?.ToString("yyyy-MM-dd")</td>
+                    <td>@result.Score.ToString("F2")</td>
+                    <td>@result.Reserved</td>
+                    <td>@result.Removed</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else if (searchResponse != null)
+{
+    <div>No results found.</div>
+}
+
+@code {
+    private bool isLoading = false;
+    private SearchResultsModel? searchResponse;
+    private CancellationToken cancellationToken;
+    private string errorMessage = string.Empty;
+    private string query = string.Empty;
+
+    private string filterType = string.Empty;
+    private string filterTitle = string.Empty;
+    private string filterPart = string.Empty;
+    private string filterSection = string.Empty;
+    private string filterStartsOn = string.Empty;
+    private string filterEndsOn = string.Empty;
+    private string filterScore = string.Empty;
+    private string filterReserved = string.Empty;
+    private string filterRemoved = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cancellationToken = new CancellationToken();
+    }
+
+    private async Task LoadAllAgencies()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            searchResponse = await EcfrApiService.GetSearchResultsAsync(query);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<Result> GetFilteredResults()
+    {
+        if (searchResponse?.Results == null)
+            return Enumerable.Empty<Result>();
+
+        return searchResponse.Results.Where(MatchesFilters).ToList();
+    }
+
+    private bool MatchesFilters(Result result)
+    {
+        return (string.IsNullOrEmpty(filterType) || result.Type.Contains(filterType, StringComparison.OrdinalIgnoreCase)) &&
+               (string.IsNullOrEmpty(filterTitle) || result.Hierarchy?.Title?.Contains(filterTitle, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterPart) || result.Hierarchy?.Part?.Contains(filterPart, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterSection) || result.Hierarchy?.Section?.Contains(filterSection, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterStartsOn) || result.StartsOn?.ToString("yyyy-MM-dd").Contains(filterStartsOn, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterEndsOn) || result.EndsOn?.ToString("yyyy-MM-dd").Contains(filterEndsOn, StringComparison.OrdinalIgnoreCase) == true) &&
+               (string.IsNullOrEmpty(filterScore) || result.Score.ToString("F2").Contains(filterScore, StringComparison.OrdinalIgnoreCase)) &&
+               (string.IsNullOrEmpty(filterReserved) || result.Reserved.ToString().Contains(filterReserved, StringComparison.OrdinalIgnoreCase)) &&
+               (string.IsNullOrEmpty(filterRemoved) || result.Removed.ToString().Contains(filterRemoved, StringComparison.OrdinalIgnoreCase));
+    }
+}
